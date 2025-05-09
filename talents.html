@@ -1,0 +1,631 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAMILLUXE - Nasze Gwiazdy</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e6f0fa, #a3bffa);
+            color: #1e3a8a;
+            font-family: 'Arial', sans-serif;
+        }
+        nav {
+            background: linear-gradient(to right, #6b7280, #9ca3af);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .artist-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .artist-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+        .artist-img {
+            width: 100%;
+            height: 180px;
+            object-fit: contain;
+            object-position: center top;
+            background: #e6f0fa;
+            border-bottom: 2px solid #9ca3af;
+        }
+        .add-to-cart {
+            background: linear-gradient(to right, #22c55e, #16a34a);
+            color: #1e3a8a;
+            font-weight: bold;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .add-to-cart:hover {
+            transform: scale(1.05);
+            background: linear-gradient(to right, #16a34a, #22c55e);
+        }
+        .add-to-cart.animate-pulse {
+            animation: pulse 0.5s ease-in-out;
+        }
+        .cart-sidebar {
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            width: 90%;
+            max-width: 350px;
+            background: #f8fafc;
+            color: #1e3a8a;
+            z-index: 1000;
+        }
+        .cart-sidebar.open {
+            transform: translateX(0);
+        }
+        .cart-count {
+            background: #dc2626;
+            color: white;
+            border-radius: 50%;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            position: absolute;
+            top: -10px;
+            right: -10px;
+        }
+        #map {
+            height: 350px;
+            border-radius: 12px;
+            margin: 2rem 0;
+            z-index: 10;
+        }
+        .popup, .order-success-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #f8fafc;
+            border: 2px solid #9ca3af;
+            border-radius: 12px;
+            padding: 1.5rem;
+            z-index: 1100;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: none;
+            animation: popupFadeIn 0.5s ease-in-out;
+        }
+        .popup.show, .order-success-popup.show {
+            display: block;
+        }
+        .popup img {
+            width: 100%;
+            height: 120px;
+            object-fit: contain;
+            object-position: center top;
+            background: #e6f0fa;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .popup button {
+            background: linear-gradient(to right, #22c55e, #16a34a);
+            color: #1e3a8a;
+            font-weight: bold;
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 8px;
+        }
+        .popup button:hover {
+            background: linear-gradient(to right, #16a34a, #22c55e);
+        }
+        .order-success-popup {
+            text-align: center;
+            background: linear-gradient(135deg, #e6f0fa, #a3bffa);
+            border: 3px solid #1e3a8a;
+            padding: 2rem;
+        }
+        .order-success-popup h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1e3a8a;
+            margin-bottom: 1rem;
+        }
+        #payment-page {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 2rem;
+            z-index: 10;
+        }
+        @keyframes popupFadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        @media (max-width: 640px) {
+            .artist-img {
+                height: 140px;
+            }
+            .popup img {
+                height: 100px;
+            }
+            #map {
+                height: 250px;
+            }
+            .artist-card {
+                padding: 1rem;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .cart-sidebar, .popup, .order-success-popup {
+                width: 95%;
+            }
+            input, select, button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <audio id="clickSound" src="click.mp3"></audio>
+    <div id="main-content">
+        <nav class="text-white p-4 sticky top-0 z-50">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="text-2xl font-bold">
+                    <span class="logo-text">
+                        <span>K</span><span>A</span><span>M</span><span>I</span><span>L</span><span>L</span><span>U</span><span>X</span><span>E</span>
+                    </span>
+                </div>
+                <div class="space-x-4">
+                    <a href="index.html" class="hover:text-gray-200 transition">Strona Główna</a>
+                    <a href="talents.html" class="hover:text-gray-200 transition">Nasze Gwiazdy</a>
+                </div>
+                <div class="relative">
+                    <button id="cart-toggle" class="focus:outline-none relative" aria-label="Otwórz koszyk">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        <span id="cart-count" class="cart-count hidden">0</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div id="cart-sidebar" class="cart-sidebar fixed top-0 right-0 h-full shadow-lg p-4 overflow-y-auto z-50">
+            <h2 class="text-xl font-bold mb-4">Koszyk</h2>
+            <div id="cart-items" class="mb-4"></div>
+            <button id="cart-close" class="text-red-600 mb-4 hover:text-red-500 transition" aria-label="Zamknij koszyk">Zamknij</button>
+            <div id="cart-total" class="mt-4 font-bold"></div>
+            <button id="order-button" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 mt-4 w-full hover:from-indigo-600 hover:to-blue-600 transition">Złóż zamówienie</button>
+        </div>
+
+        <div id="popup" class="popup">
+            <h2 id="popup-title" class="text-xl font-bold mb-2"></h2>
+            <img id="popup-img" src="" alt="Artist">
+            <p id="popup-message" class="mb-4"></p>
+            <button id="popup-check" aria-label="Sprawdź szczegóły artysty">Sprawdź!</button>
+        </div>
+
+        <div id="order-success-popup" class="order-success-popup">
+            <h2 id="order-success-message"></h2>
+        </div>
+
+        <section id="talents" class="py-16">
+            <div class="container mx-auto text-center">
+                <h2 class="text-3xl font-bold mb-8">Nasze Gwiazdy</h2>
+                <div id="map" class="relative"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
+                    <div class="artist-card p-4">
+                        <img src="kamil.jpg" alt="Kamil Strzelczyk" class="artist-img">
+                        <h3 class="text-xl font-semibold mt-4 mb-2">Kamil Strzelczyk</h3>
+                        <p class="mb-2">Lokalizacja: Przecław, 39-320</p>
+                        <p class="mb-4">Kamil to niewinny majster, który rozkręca imprezy z kobiecą widownią jak nikt!</p>
+                        <p class="star-rating text-yellow-400">★★★★★</p>
+                        <p class="font-bold">Cennik: 500 PLN/godz.</p>
+                        <div class="mt-4 flex flex-col gap-2">
+                            <input type="number" min="1" placeholder="Godziny" class="hours-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="date" class="date-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="text" placeholder="Adres" class="address-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <button class="add-to-cart px-4 py-2 rounded" data-name="Kamil Strzelczyk" data-price="500">Dodaj do koszyka</button>
+                        </div>
+                    </div>
+                    <div class="artist-card p-4">
+                        <img src="adam.jpg" alt="Adam Wójcik" class="artist-img">
+                        <h3 class="text-xl font-semibold mt-4 mb-2">Adam Wójcik</h3>
+                        <p class="mb-2">Lokalizacja: Mielec, 39-300</p>
+                        <p class="mb-4">Adam super tańczy, kolana same się zginają przy jego popisowym „Szymijaj Szymije”!</p>
+                        <p class="star-rating text-yellow-400">★★★★★</p>
+                        <p class="font-bold">Cennik: 400 PLN/godz.</p>
+                        <div class="mt-4 flex flex-col gap-2">
+                            <input type="number" min="1" placeholder="Godziny" class="hours-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="date" class="date-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="text" placeholder="Adres" class="address-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <button class="add-to-cart px-4 py-2 rounded" data-name="Adam Wójcik" data-price="400">Dodaj do koszyka</button>
+                        </div>
+                    </div>
+                    <div class="artist-card p-4">
+                        <img src="oliwier.jpg" alt="Oliwier Harla" class="artist-img">
+                        <h3 class="text-xl font-semibold mt-4 mb-2">Oliwier Harla</h3>
+                        <p class="mb-2">Lokalizacja: Rzemień, 39-322</p>
+                        <p class="mb-4">Oliwier ma wzrok sokoła i romantyczną duszę, która oczaruje każdą imprezę!</p>
+                        <p class="star-rating text-yellow-400">★★★★★</p>
+                        <p class="font-bold">Cennik: 300 PLN/godz.</p>
+                        <div class="mt-4 flex flex-col gap-2">
+                            <input type="number" min="1" placeholder="Godziny" class="hours-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="date" class="date-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="text" placeholder="Adres" class="address-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <button class="add-to-cart px-4 py-2 rounded" data-name="Oliwier Harla" data-price="300">Dodaj do koszyka</button>
+                        </div>
+                    </div>
+                    <div class="artist-card p-4">
+                        <img src="julka.jpg" alt="Julka Kogut" class="artist-img">
+                        <h3 class="text-xl font-semibold mt-4 mb-2">Julka Kogut</h3>
+                        <p class="mb-2">Lokalizacja: Mielec, 39-300</p>
+                        <p class="mb-4">Julka to stan umysłu brainrot, tralalelo tralala, rozkręca imprezy jak nikt!</p>
+                        <p class="star-rating text-yellow-400">★★★★★</p>
+                        <p class="font-bold">Cennik: 30 PLN/godz.</p>
+                        <div class="mt-4 flex flex-col gap-2">
+                            <input type="number" min="1" placeholder="Godziny" class="hours-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="date" class="date-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <input type="text" placeholder="Adres" class="address-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
+                            <button class="add-to-cart px-4 py-2 rounded" data-name="Julka Kogut" data-price="30">Dodaj do koszyka</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="bg-gray-900 text-white text-center p-4">
+            <p>© 2025 KAMILLUXE. Wszelkie prawa zastrzeżone.</p>
+        </footer>
+        <div class="disclaimer">
+            Uwaga: To nie jest prawdziwa strona, tylko projekt szkolny. Proszę nie brać tego na serio!
+        </div>
+    </div>
+
+    <div id="payment-page" class="container mx-auto py-16 hidden">
+        <h1 class="text-3xl font-bold text-center mb-8">Finalizacja Zamówienia</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                <h2 class="text-2xl font-semibold mb-4">Podsumowanie zamówienia</h2>
+                <div id="payment-cart-items" class="mb-4"></div>
+                <div id="payment-shipping-cost" class="mb-4"></div>
+                <div id="payment-total" class="font-bold"></div>
+            </div>
+            <div>
+                <h2 class="text-2xl font-semibold mb-4">Dane do zamówienia</h2>
+                <div class="mb-4">
+                    <label class="block mb-2">Imię i nazwisko</label>
+                    <input type="text" id="full-name" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block mb-2">Adres</label>
+                    <input type="text" id="address" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block mb-2">E-mail</label>
+                    <input type="email" id="email" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block mb-2">Metoda wysyłki</label>
+                    <select id="shipping-method" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded">
+                        <option value="inpost" data-cost="119">InPost - 119 PLN</option>
+                        <option value="fedex" data-cost="99">FedEx - 99 PLN</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="invoice-checkbox" class="mr-2">
+                        Chcę otrzymać fakturę
+                    </label>
+                </div>
+                <div id="invoice-fields" class="hidden">
+                    <div class="mb-4">
+                        <label class="block mb-2">NIP</label>
+                        <input type="text" id="nip" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block mb-2">Nazwa firmy</label>
+                        <input type="text" id="company-name" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded">
+                    </div>
+                </div>
+                <button id="confirm-order" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 w-full rounded hover:from-indigo-600 hover:to-blue-600 transition">Potwierdź zamówienie</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        let cart = []; // Koszyk w pamięci sesji, bez localStorage
+        const artists = [
+            { name: "Kamil Strzelczyk", img: "kamil.jpg", message: "Terminy Kamila się kończą! Złap go, zanim rozkręci imprezę gdzie indziej!" },
+            { name: "Adam Wójcik", img: "adam.jpg", message: "Adam i jego 'Szymijaj Szymije' w promocyjnej cenie! Kolana w ruch!" },
+            { name: "Oliwier Harla", img: "oliwier.jpg", message: "Oliwier w Twojej okolicy! Romantyzm level sokoła czeka!" },
+            { name: "Julka Kogut", img: "julka.jpg", message: "Gorąca Julka w Twojej okolicy! Tralalelo tralala na maxa!" }
+        ];
+        const orderMessages = {
+            "Kamil Strzelczyk": [
+                "Kamil już szykuje fryzurę na imprezę!",
+                "Kamil pakuje narzędzia i rusza na show!",
+                "Kamil ćwiczy ruchy, będzie ogień!"
+            ],
+            "Adam Wójcik": [
+                "Adam już jedzie z Szymijaj Szymije!",
+                "Adam rozgrzewa kolana na parkiet!",
+                "Adam szykuje taneczny szał!"
+            ],
+            "Oliwier Harla": [
+                "Oliwier już się szykuje z romantycznym vibe!",
+                "Oliwier poleruje wzrok sokoła!",
+                "Oliwier szykuje serce na imprezę!"
+            ],
+            "Julka Kogut": [
+                "Julka już odpala brainrot, tralalelo tralala!",
+                "Julka szykuje imprezowy chaos!",
+                "Julka już jedzie z maksymalnym vibem!"
+            ]
+        };
+
+        const map = L.map('map').setView([50.192, 21.418], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        L.marker([50.199, 21.395]).addTo(map).bindPopup('Kamil Strzelczyk<br>Przecław, 39-320');
+        L.marker([50.287, 21.423]).addTo(map).bindPopup('Adam Wójcik<br>Mielec, 39-300');
+        L.marker([50.183, 21.468]).addTo(map).bindPopup('Oliwier Harla<br>Rzemień, 39-322');
+        L.marker([50.285, 21.425]).addTo(map).bindPopup('Julka Kogut<br>Mielec, 39-300');
+
+        function playSound() {
+            console.log('Odtwarzam dźwięk');
+            const sound = document.getElementById('clickSound');
+            sound.play().catch(err => console.error('Błąd odtwarzania dźwięku:', err));
+        }
+
+        function showPopup() {
+            console.log('Pokazuję popup');
+            const popup = document.getElementById('popup');
+            const randomArtist = artists[Math.floor(Math.random() * artists.length)];
+            document.getElementById('popup-title').textContent = randomArtist.name;
+            document.getElementById('popup-img').src = randomArtist.img;
+            document.getElementById('popup-message').textContent = randomArtist.message;
+            popup.classList.add('show');
+            playSound();
+            document.getElementById('popup-check').onclick = () => {
+                popup.classList.remove('show');
+                window.location.href = '#talents';
+            };
+            setTimeout(() => popup.classList.remove('show'), 5000);
+            setTimeout(showPopup, Math.random() * 10000 + 20000);
+        }
+
+        function showOrderSuccessPopup() {
+            console.log('Pokazuję popup sukcesu zamówienia');
+            const popup = document.getElementById('order-success-popup');
+            const artistNames = [...new Set(cart.map(item => item.name))];
+            const randomArtist = artistNames[Math.floor(Math.random() * artistNames.length)];
+            const messages = orderMessages[randomArtist] || ["Zamówienie złożone!"];
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            document.getElementById('order-success-message').textContent = randomMessage;
+            popup.classList.add('show');
+            setTimeout(() => popup.classList.remove('show'), 5000);
+        }
+
+        function updateCartCount() {
+            console.log('Aktualizuję licznik koszyka:', cart.length);
+            const cartCount = document.getElementById('cart-count');
+            cartCount.textContent = cart.length;
+            cartCount.classList.toggle('hidden', cart.length === 0);
+        }
+
+        function addToCart(event) {
+            console.log('Dodaję do koszyka');
+            const button = event.target;
+            const parent = button.parentElement;
+            const name = button.getAttribute('data-name');
+            const price = parseInt(button.getAttribute('data-price'));
+            const hours = parseInt(parent.querySelector('.hours-input').value || 0);
+            const date = parent.querySelector('.date-input').value;
+            const address = parent.querySelector('.address-input').value.trim();
+
+            if (!hours || hours < 1) {
+                alert('Podaj liczbę godzin (minimum 1)!');
+                return;
+            }
+            const today = new Date().toISOString().split('T')[0];
+            if (!date || date < today) {
+                alert('Podaj przyszłą datę!');
+                return;
+            }
+            if (!address || address.length < 5) {
+                alert('Podaj poprawny adres (minimum 5 znaków)!');
+                return;
+            }
+
+            const item = { name, price, hours, date, address };
+            cart.push(item);
+            console.log('Dodano do koszyka:', item);
+            updateCart();
+            updateCartCount();
+
+            button.classList.add('animate-pulse');
+            setTimeout(() => button.classList.remove('animate-pulse'), 500);
+
+            parent.querySelector('.hours-input').value = '';
+            parent.querySelector('.date-input').value = '';
+            parent.querySelector('.address-input').value = '';
+        }
+
+        function updateCart() {
+            console.log('Aktualizuję koszyk:', cart);
+            const cartItems = document.getElementById('cart-items');
+            cartItems.innerHTML = '';
+            let total = 0;
+
+            cart.forEach((item, index) => {
+                total += item.price * item.hours;
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'border-b border-gray-400 py-2';
+                itemDiv.innerHTML = `
+                    <p><strong>${item.name}</strong></p>
+                    <p>${item.hours} godz. | ${item.date} | ${item.address}</p>
+                    <p>Cena: ${item.price * item.hours} PLN</p>
+                    <button class="remove-item text-red-600 text-sm hover:text-red-500" data-index="${index}" aria-label="Usuń ${item.name} z koszyka">Usuń</button>
+                `;
+                cartItems.appendChild(itemDiv);
+            });
+
+            document.getElementById('cart-total').textContent = `Łącznie: ${total} PLN`;
+
+            document.querySelectorAll('.remove-item').forEach(button => {
+                button.addEventListener('click', () => {
+                    const index = parseInt(button.getAttribute('data-index'));
+                    console.log('Usuwam element z koszyka, index:', index);
+                    cart.splice(index, 1);
+                    updateCart();
+                    updateCartCount();
+                });
+            });
+        }
+
+        function showPaymentPage() {
+            console.log('Pokazuję stronę płatności');
+            if (cart.length === 0) {
+                alert('Koszyk jest pusty! Dodaj coś!');
+                return;
+            }
+
+            document.getElementById('main-content').classList.add('hidden');
+            const paymentPage = document.getElementById('payment-page');
+            paymentPage.classList.remove('hidden');
+            paymentPage.scrollIntoView({ behavior: 'smooth' });
+
+            const paymentCartItems = document.getElementById('payment-cart-items');
+            paymentCartItems.innerHTML = '';
+            let total = 0;
+
+            cart.forEach(item => {
+                total += item.price * item.hours;
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'border-b border-gray-400 py-2';
+                itemDiv.innerHTML = `
+                    <p><strong>${item.name}</strong></p>
+                    <p>${item.hours} godz. | ${item.date} | ${item.address}</p>
+                    <p>Cena: ${item.price * item.hours} PLN</p>
+                `;
+                paymentCartItems.appendChild(itemDiv);
+            });
+
+            const shippingSelect = document.getElementById('shipping-method');
+            let shippingCost = parseInt(shippingSelect.options[shippingSelect.selectedIndex].getAttribute('data-cost'));
+            document.getElementById('payment-shipping-cost').textContent = `Koszt wysyłki: ${shippingCost} PLN`;
+            document.getElementById('payment-total').textContent = `Łącznie: ${total + shippingCost} PLN`;
+
+            shippingSelect.addEventListener('change', () => {
+                shippingCost = parseInt(shippingSelect.options[shippingSelect.selectedIndex].getAttribute('data-cost'));
+                document.getElementById('payment-shipping-cost').textContent = `Koszt wysyłki: ${shippingCost} PLN`;
+                document.getElementById('payment-total').textContent = `Łącznie: ${total + shippingCost} PLN`;
+            });
+        }
+
+        function toggleCart() {
+            console.log('Przełączam koszyk');
+            const sidebar = document.getElementById('cart-sidebar');
+            sidebar.classList.toggle('open');
+            updateCart();
+        }
+
+        document.getElementById('invoice-checkbox').addEventListener('change', (e) => {
+            document.getElementById('invoice-fields').classList.toggle('hidden', !e.target.checked);
+        });
+
+        document.getElementById('confirm-order').addEventListener('click', () => {
+            console.log('Potwierdzam zamówienie');
+            const fullName = document.getElementById('full-name').value.trim();
+            const address = document.getElementById('address').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const invoiceCheckbox = document.getElementById('invoice-checkbox').checked;
+            const nip = document.getElementById('nip').value.trim();
+            const companyName = document.getElementById('company-name').value.trim();
+
+            if (!fullName || fullName.length < 3) {
+                alert('Podaj poprawne imię i nazwisko (minimum 3 znaki)!');
+                return;
+            }
+            if (!address || address.length < 5) {
+                alert('Podaj poprawny adres (minimum 5 znaków)!');
+                return;
+            }
+            if (!email || !email.includes('@')) {
+                alert('Podaj poprawny adres e-mail!');
+                return;
+            }
+            if (invoiceCheckbox && (!nip || !companyName)) {
+                alert('Wypełnij NIP i nazwę firmy dla faktury!');
+                return;
+            }
+
+            document.getElementById('payment-page').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+            showOrderSuccessPopup();
+        });
+
+        document.getElementById('cart-toggle').addEventListener('click', () => {
+            console.log('Kliknięto przycisk koszyka');
+            toggleCart();
+        });
+        document.getElementById('cart-close').addEventListener('click', toggleCart);
+        document.getElementById('order-button').addEventListener('click', showPaymentPage);
+
+        document.querySelectorAll('.add-to-cart').forEach(button => {
+            button.addEventListener('click', addToCart);
+        });
+
+        setTimeout(showPopup, 3000);
+        updateCart();
+        updateCartCount();
+
+        console.log('Stan początkowy:');
+        console.log('Koszyk:', cart);
+    </script>
+</body>
+</html>
