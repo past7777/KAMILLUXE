@@ -114,10 +114,47 @@
             font-size: 1.1rem;
             background: rgba(255, 255, 255, 0.8);
         }
+        #quiz-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #f8fafc;
+            border: 2px solid #9ca3af;
+            border-radius: 12px;
+            padding: 1.5rem;
+            z-index: 1200;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            animation: popupFadeIn 0.5s ease-in-out;
+        }
+        #quiz-popup.hidden {
+            display: none;
+        }
+        #quiz-error {
+            color: #dc2626;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+            text-align: center;
+        }
+        .quiz-question {
+            margin-bottom: 1.5rem;
+        }
+        .quiz-question label {
+            display: block;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+        }
         @keyframes pulseLogo {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
+        }
+        @keyframes popupFadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
         }
         @media (max-width: 640px) {
             .container {
@@ -135,12 +172,38 @@
             .disclaimer {
                 font-size: 0.9rem;
             }
+            #quiz-popup {
+                width: 95%;
+            }
         }
     </style>
 </head>
 <body>
     <audio id="clickSound" src="click.mp3"></audio>
-    <div id="main-content">
+    <div id="quiz-popup">
+        <h2 class="text-xl font-bold mb-4">Odpowiedz na pytania, aby wejść</h2>
+        <div class="quiz-question">
+            <p class="font-semibold mb-2">1. Ile Wójcik ma ojców?</p>
+            <label><input type="radio" name="q1" value="Jednego"> Jednego</label>
+            <label><input type="radio" name="q1" value="Dwóch"> Dwóch</label>
+            <label><input type="radio" name="q1" value="Trzech"> Trzech</label>
+            <label><input type="radio" name="q1" value="Czterech"> Czterech</label>
+        </div>
+        <div class="quiz-question">
+            <p class="font-semibold mb-2">2. Gdzie jest mama Kamila?</p>
+            <label><input type="radio" name="q2" value="Na Majorce"> Na Majorce</label>
+            <label><input type="radio" name="q2" value="W Anglii"> W Anglii</label>
+            <label><input type="radio" name="q2" value="Kto to wie"> Kto to wie</label>
+        </div>
+        <div class="quiz-question">
+            <p class="font-semibold mb-2">3. Czy Oliwier jest gejem?</p>
+            <label><input type="radio" name="q3" value="Tak"> Tak</label>
+            <label><input type="radio" name="q3" value="Tak"> Tak</label>
+        </div>
+        <button id="quiz-submit" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 w-full rounded hover:from-indigo-600 hover:to-blue-600 transition">Potwierdź</button>
+        <p id="quiz-error">Niepoprawne odpowiedzi! Spróbuj ponownie.</p>
+    </div>
+    <div id="main-content" class="hidden">
         <nav class="text-white p-4 sticky top-0 z-50">
             <div class="container mx-auto flex justify-between items-center">
                 <div class="text-2xl font-bold">
@@ -151,6 +214,7 @@
                 <div class="space-x-4">
                     <a href="index.html" class="hover:text-gray-200 transition">Strona Główna</a>
                     <a href="talents.html" class="hover:text-gray-200 transition">Nasze Gwiazdy</a>
+                    <a href="vlogs.html" class="hover:text-gray-200 transition">Vlogi Adasia</a>
                 </div>
                 <div class="relative">
                     <button id="cart-toggle" class="focus:outline-none relative" aria-label="Otwórz koszyk">
@@ -196,6 +260,44 @@
     </div>
 
     <script>
+        let isAuthenticated = sessionStorage.getItem('quizPassed') === 'true';
+
+        function checkQuiz() {
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const quizError = document.getElementById('quiz-error');
+
+            if (!q1 || !q2 || !q3) {
+                quizError.textContent = 'Wybierz odpowiedź dla każdego pytania!';
+                quizError.style.display = 'block';
+                return;
+            }
+
+            const isCorrect =
+                q1.value === 'Dwóch' && // Wójcik ma dwóch ojców
+                q2.value === 'Kto to wie' && // Mama Kamila
+                (q3.value === 'Tak'); // Oliwier, obie odpowiedzi poprawne
+
+            if (isCorrect) {
+                isAuthenticated = true;
+                sessionStorage.setItem('quizPassed', 'true');
+                document.getElementById('quiz-popup').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+            } else {
+                quizError.textContent = 'Niepoprawne odpowiedzi! Spróbuj ponownie.';
+                quizError.style.display = 'block';
+                document.querySelectorAll('input[type="radio"]').forEach(input => input.checked = false);
+            }
+        }
+
+        document.getElementById('quiz-submit').addEventListener('click', checkQuiz);
+
+        if (isAuthenticated) {
+            document.getElementById('quiz-popup').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+        }
+
         let cart = []; // Koszyk w pamięci sesji, bez localStorage
 
         function updateCartCount() {

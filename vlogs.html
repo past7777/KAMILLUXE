@@ -1,0 +1,388 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAMILLUXE - Vlogi Adasia</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #e6f0fa, #a3bffa);
+            color: #1e3a8a;
+            font-family: 'Arial', sans-serif;
+        }
+        nav {
+            background: linear-gradient(to right, #6b7280, #9ca3af);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .cart-sidebar {
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            width: 90%;
+            max-width: 350px;
+            background: #f8fafc;
+            color: #1e3a8a;
+            z-index: 1000;
+        }
+        .cart-sidebar.open {
+            transform: translateX(0);
+        }
+        .cart-count {
+            background: #dc2626;
+            color: white;
+            border-radius: 50%;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            position: absolute;
+            top: -10px;
+            right: -10px;
+        }
+        .logo-text {
+            display: inline-flex;
+        }
+        .logo-text span {
+            animation: pulseLogo 2s infinite;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+        }
+        .logo-text span:nth-child(1) { color: #ef4444; } /* K */
+        .logo-text span:nth-child(2) { color: #f97316; } /* A */
+        .logo-text span:nth-child(3) { color: #eab308; } /* M */
+        .logo-text span:nth-child(4) { color: #22c55e; } /* I */
+        .logo-text span:nth-child(5) { color: #06b6d4; } /* L */
+        .logo-text span:nth-child(6) { color: #3b82f6; } /* L */
+        .logo-text span:nth-child(7) { color: #8b5cf6; } /* U */
+        .logo-text span:nth-child(8) { color: #ec4899; } /* X */
+        .logo-text span:nth-child(9) { color: #d946ef; } /* E */
+        .video-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+        }
+        .video-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border-bottom: 2px solid #9ca3af;
+        }
+        .review-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e5e7eb;
+        }
+        .review-card .star-rating {
+            color: #eab308;
+        }
+        #code-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #f8fafc;
+            border: 2px solid #9ca3af;
+            border-radius: 12px;
+            padding: 1.5rem;
+            z-index: 1200;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            animation: popupFadeIn 0.5s ease-in-out;
+        }
+        #code-popup.hidden {
+            display: none;
+        }
+        #code-error {
+            color: #dc2626;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+            text-align: center;
+        }
+        .video-locked {
+            display: none;
+        }
+        .video-unlocked {
+            display: block;
+        }
+        @keyframes pulseLogo {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @keyframes popupFadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        @media (max-width: 640px) {
+            .container {
+                padding: 0 1rem;
+            }
+            .cart-sidebar, #code-popup {
+                width: 95%;
+            }
+            .video-card {
+                padding: 0.5rem;
+            }
+            video {
+                height: 200px;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <audio id="clickSound" src="click.mp3"></audio>
+    <div id="code-popup">
+        <h2 class="text-xl font-bold mb-4">Wpisz kod dostępu</h2>
+        <p class="mb-4">Aby obejrzeć vlogi Adasia, wyślij zapytanie o kod na adres: <a href="mailto:kamilluxe.com@gmail.com" class="text-blue-500 hover:underline">kamilluxe.com@gmail.com</a>.</p>
+        <input type="text" id="code-input" class="border border-gray-400 bg-white text-gray-800 p-2 w-full rounded mb-4" placeholder="Wpisz kod">
+        <button id="code-submit" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 w-full rounded hover:from-indigo-600 hover:to-blue-600 transition">Potwierdź</button>
+        <p id="code-error">Niepoprawny kod! Spróbuj ponownie.</p>
+    </div>
+    <div id="main-content">
+        <nav class="text-white p-4 sticky top-0 z-50">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="text-2xl font-bold">
+                    <span class="logo-text">
+                        <span>K</span><span>A</span><span>M</span><span>I</span><span>L</span><span>L</span><span>U</span><span>X</span><span>E</span>
+                    </span>
+                </div>
+                <div class="space-x-4">
+                    <a href="index.html" class="hover:text-gray-200 transition">Strona Główna</a>
+                    <a href="talents.html" class="hover:text-gray-200 transition">Nasze Gwiazdy</a>
+                    <a href="vlogs.html" class="hover:text-gray-200 transition">Vlogi Adasia</a>
+                </div>
+                <div class="relative">
+                    <button id="cart-toggle" class="focus:outline-none relative" aria-label="Otwórz koszyk">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        <span id="cart-count" class="cart-count hidden">0</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div id="cart-sidebar" class="cart-sidebar fixed top-0 right-0 h-full shadow-lg p-4 overflow-y-auto z-50">
+            <h2 class="text-xl font-bold mb-4">Koszyk</h2>
+            <div id="cart-items" class="mb-4"></div>
+            <button id="cart-close" class="text-red-600 mb-4 hover:text-red-500 transition" aria-label="Zamknij koszyk">Zamknij</button>
+            <div id="cart-total" class="mt-4 font-bold"></div>
+            <button id="order-button" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 mt-4 w-full hover:from-indigo-600 hover:to-blue-600 transition">Złóż zamówienie</button>
+        </div>
+
+        <section class="py-16">
+            <div class="container mx-auto text-center">
+                <h1 class="text-4xl font-bold mb-8">Vlogi Adasia</h1>
+                <p class="text-lg mb-8">Obejrzyj, jak Adam Wójcik rozkręca imprezy i pokazuje swoje „Szymijaj Szymije”!</p>
+                <div id="videos-section" class="grid grid-cols-1 md:grid-cols-3 gap-6 px-4 video-locked">
+                    <div class="video-card p-4">
+                        <video controls>
+                            <source src="adas1.mp4" type="video/mp4">
+                            Twoja przeglądarka nie obsługuje wideo.
+                        </video>
+                        <h3 class="text-xl font-semibold mt-4">Vlog 1: Adam w akcji!</h3>
+                    </div>
+                    <div class="video-card p-4">
+                        <video controls>
+                            <source src="adas2.mp4" type="video/mp4">
+                            Twoja przeglądarka nie obsługuje wideo.
+                        </video>
+                        <h3 class="text-xl font-semibold mt-4">Vlog 2: Szymijaj Szymije!</h3>
+                    </div>
+                    <div class="video-card p-4">
+                        <video controls>
+                            <source src="adas3.mp4" type="video/mp4">
+                            Twoja przeglądarka nie obsługuje wideo.
+                        </video>
+                        <h3 class="text-xl font-semibold mt-4">Vlog 3: Taneczny szał!</h3>
+                    </div>
+                </div>
+                <div id="reviews-section" class="video-locked">
+                    <h2 class="text-3xl font-bold mt-12 mb-8">Opinie fanów</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 px-4">
+                        <div class="review-card">
+                            <p class="star-rating">★★★★★</p>
+                            <p class="mt-2">Adam rozjebał parkiet! Szymijaj Szymije na maksa, najlepszy vlog ever!</p>
+                            <p class="text-sm text-gray-600 mt-2">~Kasia123</p>
+                        </div>
+                        <div class="review-card">
+                            <p class="star-rating">★☆☆☆☆</p>
+                            <p class="mt-2">Do dupy, gdzie Szymijaj Szymije?! Wójcik, co z tobą?!</p>
+                            <p class="text-sm text-gray-600 mt-2">~ZawiedzionyFan</p>
+                        </div>
+                        <div class="review-card">
+                            <p class="star-rating">★★☆☆☆</p>
+                            <p class="mt-2">Słabe, Wójcik bez formy, oczekiwałem więcej tańca!</p>
+                            <p class="text-sm text-gray-600 mt-2">~Mietek99</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="bg-gray-900 text-white text-center p-4">
+            <p>© 2025 KAMILLUXE. Wszelkie prawa zastrzeżone.</p>
+        </footer>
+        <div class="disclaimer">
+            Uwaga: To nie jest prawdziwa strona, tylko projekt szkolny. Proszę nie brać tego na serio!
+        </div>
+    </div>
+
+    <script>
+        let isVlogsUnlocked = sessionStorage.getItem('vlogsUnlocked') === 'true';
+
+        function checkVlogsAccess() {
+            if (isVlogsUnlocked) {
+                document.getElementById('code-popup').classList.add('hidden');
+                document.getElementById('videos-section').classList.remove('video-locked');
+                document.getElementById('videos-section').classList.add('video-unlocked');
+                document.getElementById('reviews-section').classList.remove('video-locked');
+                document.getElementById('reviews-section').classList.add('video-unlocked');
+            } else {
+                document.getElementById('code-popup').classList.remove('hidden');
+                document.getElementById('videos-section').classList.add('video-locked');
+                document.getElementById('reviews-section').classList.add('video-locked');
+            }
+        }
+
+        function checkCode() {
+            const codeInput = document.getElementById('code-input').value.trim();
+            const codeError = document.getElementById('code-error');
+
+            if (codeInput === 'adammamalego') {
+                isVlogsUnlocked = true;
+                sessionStorage.setItem('vlogsUnlocked', 'true');
+                document.getElementById('code-popup').classList.add('hidden');
+                document.getElementById('videos-section').classList.remove('video-locked');
+                document.getElementById('videos-section').classList.add('video-unlocked');
+                document.getElementById('reviews-section').classList.remove('video-locked');
+                document.getElementById('reviews-section').classList.add('video-unlocked');
+            } else {
+                codeError.textContent = 'Niepoprawny kod! Spróbuj ponownie.';
+                codeError.style.display = 'block';
+                document.getElementById('code-input').value = '';
+            }
+        }
+
+        document.getElementById('code-submit').addEventListener('click', checkCode);
+        checkVlogsAccess();
+
+        let cart = []; // Koszyk w pamięci sesji, bez localStorage
+
+        function updateCartCount() {
+            console.log('Aktualizuję licznik koszyka:', cart.length);
+            const cartCount = document.getElementById('cart-count');
+            cartCount.textContent = cart.length;
+            cartCount.classList.toggle('hidden', cart.length === 0);
+        }
+
+        function updateCart() {
+            console.log('Aktualizuję koszyk:', cart);
+            const cartItems = document.getElementById('cart-items');
+            cartItems.innerHTML = '';
+            let total = 0;
+
+            cart.forEach((item, index) => {
+                total += item.price * item.hours;
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'border-b border-gray-400 py-2';
+                itemDiv.innerHTML = `
+                    <p><strong>${item.name}</strong></p>
+                    <p>${item.hours} godz. | ${item.date} | ${item.address}</p>
+                    <p>Cena: ${item.price * item.hours} PLN</p>
+                    <button class="remove-item text-red-600 text-sm hover:text-red-500" data-index="${index}" aria-label="Usuń ${item.name} z koszyka">Usuń</button>
+                `;
+                cartItems.appendChild(itemDiv);
+            });
+
+            document.getElementById('cart-total').textContent = `Łącznie: ${total} PLN`;
+
+            document.querySelectorAll('.remove-item').forEach(button => {
+                button.addEventListener('click', () => {
+                    const index = parseInt(button.getAttribute('data-index'));
+                    console.log('Usuwam element z koszyka, index:', index);
+                    cart.splice(index, 1);
+                    updateCart();
+                    updateCartCount();
+                });
+            });
+        }
+
+        function toggleCart() {
+            console.log('Przełączam koszyk');
+            const sidebar = document.getElementById('cart-sidebar');
+            sidebar.classList.toggle('open');
+            updateCart();
+        }
+
+        document.getElementById('cart-toggle').addEventListener('click', () => {
+            console.log('Kliknięto przycisk koszyka');
+            toggleCart();
+        });
+        document.getElementById('cart-close').addEventListener('click', toggleCart);
+        document.getElementById('order-button').addEventListener('click', () => {
+            console.log('Kliknięto złóż zamówienie');
+            if (cart.length === 0) {
+                alert('Koszyk jest pusty! Dodaj coś!');
+                return;
+            }
+            window.location.href = 'talents.html#payment';
+        });
+
+        updateCart();
+        updateCartCount();
+
+        console.log('Stan początkowy:');
+        console.log('Koszyk:', cart);
+    </script>
+</body>
+</html>

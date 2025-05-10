@@ -115,7 +115,7 @@
             margin: 2rem 0;
             z-index: 10;
         }
-        .popup, .order-success-popup {
+        .order-success-popup, #quiz-popup {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -125,34 +125,19 @@
             border-radius: 12px;
             padding: 1.5rem;
             z-index: 1100;
-            max-width: 400px;
+            max-width: 500px;
             width: 90%;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            display: none;
             animation: popupFadeIn 0.5s ease-in-out;
         }
-        .popup.show, .order-success-popup.show {
+        #quiz-popup {
+            z-index: 1200;
+        }
+        .order-success-popup.show {
             display: block;
         }
-        .popup img {
-            width: 100%;
-            height: 120px;
-            object-fit: contain;
-            object-position: center top;
-            background: #e6f0fa;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        .popup button {
-            background: linear-gradient(to right, #22c55e, #16a34a);
-            color: #1e3a8a;
-            font-weight: bold;
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 8px;
-        }
-        .popup button:hover {
-            background: linear-gradient(to right, #16a34a, #22c55e);
+        #quiz-popup.hidden {
+            display: none;
         }
         .order-success-popup {
             text-align: center;
@@ -172,6 +157,21 @@
             padding: 2rem;
             z-index: 10;
         }
+        #quiz-error {
+            color: #dc2626;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+            text-align: center;
+        }
+        .quiz-question {
+            margin-bottom: 1.5rem;
+        }
+        .quiz-question label {
+            display: block;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+        }
         @keyframes popupFadeIn {
             from { opacity: 0; transform: translate(-50%, -60%); }
             to { opacity: 1; transform: translate(-50%, -50%); }
@@ -185,9 +185,6 @@
             .artist-img {
                 height: 140px;
             }
-            .popup img {
-                height: 100px;
-            }
             #map {
                 height: 250px;
             }
@@ -197,7 +194,7 @@
             .grid {
                 grid-template-columns: 1fr;
             }
-            .cart-sidebar, .popup, .order-success-popup {
+            .cart-sidebar, .order-success-popup, #quiz-popup {
                 width: 95%;
             }
             input, select, button {
@@ -208,7 +205,30 @@
 </head>
 <body>
     <audio id="clickSound" src="click.mp3"></audio>
-    <div id="main-content">
+    <div id="quiz-popup">
+        <h2 class="text-xl font-bold mb-4">Odpowiedz na pytania, aby wejść</h2>
+        <div class="quiz-question">
+            <p class="font-semibold mb-2">1. Ile Wójcik ma ojców?</p>
+            <label><input type="radio" name="q1" value="Jednego"> Jednego</label>
+            <label><input type="radio" name="q1" value="Dwóch"> Dwóch</label>
+            <label><input type="radio" name="q1" value="Trzech"> Trzech</label>
+            <label><input type="radio" name="q1" value="Czterech"> Czterech</label>
+        </div>
+        <div class="quiz-question">
+            <p class="font-semibold mb-2">2. Gdzie jest mama Kamila?</p>
+            <label><input type="radio" name="q2" value="Na Majorce"> Na Majorce</label>
+            <label><input type="radio" name="q2" value="W Anglii"> W Anglii</label>
+            <label><input type="radio" name="q2" value="Kto to wie"> Kto to wie</label>
+        </div>
+        <div class="quiz-question">
+            <p class="font-semibold mb-2">3. Czy Oliwier jest gejem?</p>
+            <label><input type="radio" name="q3" value="Tak"> Tak</label>
+            <label><input type="radio" name="q3" value="Tak"> Tak</label>
+        </div>
+        <button id="quiz-submit" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 w-full rounded hover:from-indigo-600 hover:to-blue-600 transition">Potwierdź</button>
+        <p id="quiz-error">Niepoprawne odpowiedzi! Spróbuj ponownie.</p>
+    </div>
+    <div id="main-content" class="hidden">
         <nav class="text-white p-4 sticky top-0 z-50">
             <div class="container mx-auto flex justify-between items-center">
                 <div class="text-2xl font-bold">
@@ -219,6 +239,7 @@
                 <div class="space-x-4">
                     <a href="index.html" class="hover:text-gray-200 transition">Strona Główna</a>
                     <a href="talents.html" class="hover:text-gray-200 transition">Nasze Gwiazdy</a>
+                    <a href="vlogs.html" class="hover:text-gray-200 transition">Vlogi Adasia</a>
                 </div>
                 <div class="relative">
                     <button id="cart-toggle" class="focus:outline-none relative" aria-label="Otwórz koszyk">
@@ -239,14 +260,7 @@
             <button id="order-button" class="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-4 py-2 mt-4 w-full hover:from-indigo-600 hover:to-blue-600 transition">Złóż zamówienie</button>
         </div>
 
-        <div id="popup" class="popup">
-            <h2 id="popup-title" class="text-xl font-bold mb-2"></h2>
-            <img id="popup-img" src="" alt="Artist">
-            <p id="popup-message" class="mb-4"></p>
-            <button id="popup-check" aria-label="Sprawdź szczegóły artysty">Sprawdź!</button>
-        </div>
-
-        <div id="order-success-popup" class="order-success-popup">
+        <div id="order-success-popup" class="order-success-popup hidden">
             <h2 id="order-success-message"></h2>
         </div>
 
@@ -301,8 +315,8 @@
                         <img src="julka.jpg" alt="Julka Kogut" class="artist-img">
                         <h3 class="text-xl font-semibold mt-4 mb-2">Julka Kogut</h3>
                         <p class="mb-2">Lokalizacja: Mielec, 39-300</p>
-                        <p class="mb-4">Julka to stan umysłu brainrot, tralalelo tralala, rozkręca imprezy jak nikt!</p>
-                        <p class="star-rating text-yellow-400">★★★★★</p>
+                        <p class="mb-4">Julka to stan umysłu, szkoda zamawiać.</p>
+                        <p class="star-rating text-yellow-400">★★☆☆☆</p>
                         <p class="font-bold">Cennik: 30 PLN/godz.</p>
                         <div class="mt-4 flex flex-col gap-2">
                             <input type="number" min="1" placeholder="Godziny" class="hours-input border border-gray-400 bg-white text-gray-800 p-2 rounded w-full">
@@ -376,13 +390,45 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
+        let isAuthenticated = sessionStorage.getItem('quizPassed') === 'true';
+
+        function checkQuiz() {
+            const q1 = document.querySelector('input[name="q1"]:checked');
+            const q2 = document.querySelector('input[name="q2"]:checked');
+            const q3 = document.querySelector('input[name="q3"]:checked');
+            const quizError = document.getElementById('quiz-error');
+
+            if (!q1 || !q2 || !q3) {
+                quizError.textContent = 'Wybierz odpowiedź dla każdego pytania!';
+                quizError.style.display = 'block';
+                return;
+            }
+
+            const isCorrect =
+                q1.value === 'Dwóch' && // Wójcik ma dwóch ojców
+                q2.value === 'Kto to wie' && // Mama Kamila
+                (q3.value === 'Tak'); // Oliwier, obie odpowiedzi poprawne
+
+            if (isCorrect) {
+                isAuthenticated = true;
+                sessionStorage.setItem('quizPassed', 'true');
+                document.getElementById('quiz-popup').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+            } else {
+                quizError.textContent = 'Niepoprawne odpowiedzi! Spróbuj ponownie.';
+                quizError.style.display = 'block';
+                document.querySelectorAll('input[type="radio"]').forEach(input => input.checked = false);
+            }
+        }
+
+        document.getElementById('quiz-submit').addEventListener('click', checkQuiz);
+
+        if (isAuthenticated) {
+            document.getElementById('quiz-popup').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+        }
+
         let cart = []; // Koszyk w pamięci sesji, bez localStorage
-        const artists = [
-            { name: "Kamil Strzelczyk", img: "kamil.jpg", message: "Terminy Kamila się kończą! Złap go, zanim rozkręci imprezę gdzie indziej!" },
-            { name: "Adam Wójcik", img: "adam.jpg", message: "Adam i jego 'Szymijaj Szymije' w promocyjnej cenie! Kolana w ruch!" },
-            { name: "Oliwier Harla", img: "oliwier.jpg", message: "Oliwier w Twojej okolicy! Romantyzm level sokoła czeka!" },
-            { name: "Julka Kogut", img: "julka.jpg", message: "Gorąca Julka w Twojej okolicy! Tralalelo tralala na maxa!" }
-        ];
         const orderMessages = {
             "Kamil Strzelczyk": [
                 "Kamil już szykuje fryzurę na imprezę!",
@@ -400,15 +446,19 @@
                 "Oliwier szykuje serce na imprezę!"
             ],
             "Julka Kogut": [
-                "Julka już odpala brainrot, tralalelo tralala!",
+                "Julka już odpala stan umysłu!",
                 "Julka szykuje imprezowy chaos!",
                 "Julka już jedzie z maksymalnym vibem!"
             ]
         };
 
-        const map = L.map('map').setView([50.192, 21.418], 10);
+        const map = L.map('map', {
+            zoomControl: false,
+            scrollWheelZoom: false
+        }).setView([50.192, 21.418], 10);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 15
         }).addTo(map);
         L.marker([50.199, 21.395]).addTo(map).bindPopup('Kamil Strzelczyk<br>Przecław, 39-320');
         L.marker([50.287, 21.423]).addTo(map).bindPopup('Adam Wójcik<br>Mielec, 39-300');
@@ -419,23 +469,6 @@
             console.log('Odtwarzam dźwięk');
             const sound = document.getElementById('clickSound');
             sound.play().catch(err => console.error('Błąd odtwarzania dźwięku:', err));
-        }
-
-        function showPopup() {
-            console.log('Pokazuję popup');
-            const popup = document.getElementById('popup');
-            const randomArtist = artists[Math.floor(Math.random() * artists.length)];
-            document.getElementById('popup-title').textContent = randomArtist.name;
-            document.getElementById('popup-img').src = randomArtist.img;
-            document.getElementById('popup-message').textContent = randomArtist.message;
-            popup.classList.add('show');
-            playSound();
-            document.getElementById('popup-check').onclick = () => {
-                popup.classList.remove('show');
-                window.location.href = '#talents';
-            };
-            setTimeout(() => popup.classList.remove('show'), 5000);
-            setTimeout(showPopup, Math.random() * 10000 + 20000);
         }
 
         function showOrderSuccessPopup() {
@@ -620,7 +653,6 @@
             button.addEventListener('click', addToCart);
         });
 
-        setTimeout(showPopup, 3000);
         updateCart();
         updateCartCount();
 
